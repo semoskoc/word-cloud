@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Гласај — LiveCloud</title>
+  <title>Vote — Semos Word Cloud</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -66,35 +66,40 @@
     .q-tab:hover { background: rgba(255,255,255,.08); }
     .q-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+    /* ── Answer note ── */
+    .answer-note {
+      margin-top: .8rem; font-size: .78rem; color: rgba(255,255,255,.35);
+      letter-spacing: .04em;
+    }
+
     /* ── Input area ── */
     .input-section {
       width: 100%; max-width: 480px; margin-top: 1.5rem;
       display: flex; flex-direction: column; gap: .8rem;
     }
-    .input-wrap {
-      position: relative;
-      background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.12);
-      border-radius: 1rem; overflow: hidden; transition: border-color .2s;
+
+    /* ── Yes / No buttons ── */
+    .yesno-wrap {
+      display: flex; gap: 1rem;
     }
-    .input-wrap:focus-within { border-color: var(--accent); }
-    #word-input {
-      width: 100%; padding: 1.1rem 5rem 1.1rem 1.3rem;
-      background: transparent; border: none; outline: none;
-      font-size: 1.1rem; color: #fff; font-weight: 600;
+    .yesno-btn {
+      flex: 1; padding: 1.2rem; border-radius: 1rem; border: 2px solid transparent;
+      font-size: 1.3rem; font-weight: 800; cursor: pointer;
+      transition: transform .15s, opacity .2s, box-shadow .2s;
+      touch-action: manipulation; letter-spacing: .04em;
     }
-    #word-input::placeholder { color: rgba(255,255,255,.3); font-weight: 400; }
-    #char-count {
-      position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
-      font-size: .75rem; color: rgba(255,255,255,.3);
+    .yesno-btn:active { transform: scale(.96); }
+    .yesno-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+    .yes-btn {
+      background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.18);
+      color: #fff; box-shadow: none;
     }
-    .submit-btn {
-      padding: 1.1rem; border-radius: 1rem; border: none; cursor: pointer;
-      font-size: 1.05rem; font-weight: 800; letter-spacing: .02em;
-      background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
-      transition: opacity .2s, transform .15s; touch-action: manipulation;
+    .yes-btn:not(:disabled):hover { background: rgba(255,255,255,.11); border-color: rgba(255,255,255,.3); }
+    .no-btn {
+      background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.18);
+      color: #fff; box-shadow: none;
     }
-    .submit-btn:active { transform: scale(.97); }
-    .submit-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .no-btn:not(:disabled):hover { background: rgba(255,255,255,.11); border-color: rgba(255,255,255,.3); }
     .hint { font-size: .78rem; color: rgba(255,255,255,.3); text-align: center; }
 
     /* ── Submitted words ── */
@@ -157,32 +162,31 @@
 </header>
 
 <div class="prompt-card">
-  <div class="prompt-label">Прашање</div>
+  <div class="prompt-label">Question</div>
   <div class="prompt-text" id="prompt-text">Do you use AI at a company-wide level?</div>
 </div>
 
 <div class="input-section">
-  <div class="input-wrap">
-    <input id="word-input" type="text" maxlength="30" placeholder="Напиши збор…" autocomplete="off" autocorrect="off" spellcheck="false"/>
-    <span id="char-count">0/30</span>
+  <div class="yesno-wrap">
+    <button class="yesno-btn yes-btn" id="yes-btn" onclick="submitAnswer('Yes')">Yes</button>
+    <button class="yesno-btn no-btn" id="no-btn" onclick="submitAnswer('No')">No</button>
   </div>
-  <button class="submit-btn" id="submit-btn" onclick="submitWord()">Испрати ☁️</button>
-  <div class="hint" id="hint-text">Еден одговор по прашање</div>
+  <div class="hint" id="hint-text">One answer per question</div>
 </div>
 
 <div class="live-bar">
-  <div class="live-bar-left"><div class="dot2"></div> Вкупно зборови во облакот:</div>
+  <div class="live-bar-left"><div class="dot2"></div> Total words in the cloud:</div>
   <div class="live-count" id="total-count">—</div>
 </div>
 
 <div class="submitted-section">
-  <div class="submitted-label">Твоите зборови</div>
+  <div class="submitted-label">Your words</div>
   <div class="chips" id="chips"></div>
 </div>
 
 <div id="config-notice">
-  <strong>⚠️ Нема Firebase конфигурација.</strong><br/>
-  Отвори <a href="wordcloud-live.html">wordcloud-live.html</a> прво и внеси го Firebase config-от. Истиот config важи за двете страници.
+  <strong>⚠️ No Firebase configuration.</strong><br/>
+  Open <a href="wordcloud-live.html">wordcloud-live.html</a> first and enter the Firebase config. The same config applies to both pages.
 </div>
 
 <!-- Firebase CDN -->
@@ -202,7 +206,7 @@ const FIREBASE_CONFIG = {
   measurementId: "G-KG72RMLPK7"
 };
 
-// ── Questions Config (можеш ги менувај овде) ──
+// ── Questions Config (you can edit these here) ──
 const QUESTIONS = [
   {
     id: 'q1',
@@ -316,10 +320,9 @@ function listenTotal() {
 }
 
 // ── Submit ──
-const input = document.getElementById('word-input');
-const submitBtn = document.getElementById('submit-btn');
-const charCount = document.getElementById('char-count');
 const hintText = document.getElementById('hint-text');
+const yesBtn  = document.getElementById('yes-btn');
+const noBtn   = document.getElementById('no-btn');
 
 function getSavedAnswerForCurrentQuestion() {
   return answeredByQuestion[currentQuestion.id] || null;
@@ -333,36 +336,21 @@ function renderSavedAnswerChip(answer) {
 function applyAnswerLockState() {
   const savedAnswer = getSavedAnswerForCurrentQuestion();
   if (savedAnswer) {
-    input.disabled = true;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Веќе одговорено';
-    input.placeholder = 'Веќе даде одговор за ова прашање';
-    charCount.textContent = `${savedAnswer.length}/30`;
-    hintText.textContent = `Твој одговор: "${savedAnswer}"`;
+    yesBtn.disabled = true;
+    noBtn.disabled  = true;
+    hintText.textContent = `Your answer: "${savedAnswer}"`;
     renderSavedAnswerChip(savedAnswer);
     return;
   }
-
-  input.disabled = false;
-  submitBtn.disabled = false;
-  submitBtn.textContent = 'Испрати ☁️';
-  input.placeholder = 'Напиши збор…';
-  charCount.textContent = `${input.value.length}/30`;
-  hintText.textContent = 'Еден одговор по прашање';
+  yesBtn.disabled = false;
+  noBtn.disabled  = false;
+  hintText.textContent = 'One answer per question';
 }
-
-input.addEventListener('input', () => {
-  charCount.textContent = input.value.length + '/30';
-});
-
-input.addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitWord();
-});
 
 // Apply lock state only after DOM refs are initialized.
 applyAnswerLockState();
 
-async function submitWord() {
+async function submitAnswer(word) {
   if (!wordsRef) {
     console.error('❌ wordsRef not initialized');
     showFirebaseError('Database not connected. Check browser console (F12) for details.');
@@ -372,38 +360,29 @@ async function submitWord() {
     applyAnswerLockState();
     return;
   }
-  const word = input.value.trim();
-  if (!word) {
-    console.log('ℹ️ Empty field - not submitting');
-    return;
-  }
 
-  console.log('📤 Submitting word:', word, 'for question:', currentQuestion.id);
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Sending…';
+  console.log('📤 Submitting answer:', word, 'for question:', currentQuestion.id);
+  yesBtn.disabled = true;
+  noBtn.disabled  = true;
   try {
     await wordsRef.push({ 
       text: word, 
       questionId: currentQuestion.id,
       ts: Date.now() 
     });
-    console.log('✓ Word successfully sent:', word);
+    console.log('✓ Answer successfully sent:', word);
     answeredByQuestion[currentQuestion.id] = word;
     saveAnswerMap(answeredByQuestion);
     renderSavedAnswerChip(word);
     myWords.push(word);
-    input.value = '';
-    charCount.textContent = `${word.length}/30`;
     flashScreen();
     applyAnswerLockState();
   } catch(e) {
     console.error('❌ Error submitting:', e.code, e.message);
     alert('Error: ' + e.code + ' - ' + e.message
       + '\n\nMake sure Realtime Database is in test mode and rules are correct.');
-    submitBtn.textContent = 'Submit ☁️';
-  } finally {
-    submitBtn.disabled = false;
-    input.focus();
+    yesBtn.disabled = false;
+    noBtn.disabled  = false;
   }
 }
 

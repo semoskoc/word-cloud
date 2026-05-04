@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Live Word Cloud</title>
+  <title>Semos Word Cloud</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -288,17 +288,17 @@
 
   <div id="empty-state">
     <div class="pulse-ring">☁️</div>
-    <p>Чекај учесниците да испратат зборови…</p>
+    <p>Waiting for participants to submit words…</p>
   </div>
 
   <div class="topbar">
     <img class="topbar-logo" src="https://eduwebcoorporatemk.blob.core.windows.net/edu-mk/2025/07/semos-new-logo-6870e1ec2dc7b.png" alt="Semos logo"/>
     <!-- <div class="live-badge"><div class="live-dot"></div>LIVE</div> -->
     <div class="topbar-right">
-      <span class="counter" id="word-count">0 зборови</span>
+      <span class="counter" id="word-count">0 words</span>
       <button class="icon-btn" id="review-toggle" onclick="toggleReview()">📊 Review</button>
-      <button class="icon-btn" onclick="clearAll()">🗑 Ресетирај</button>
-      <button class="icon-btn" onclick="downloadCloud()">⬇ Зачувај</button>
+      <button class="icon-btn" onclick="clearAll()">🗑 Reset</button>
+      <button class="icon-btn" onclick="downloadCloud()">⬇ Save</button>
     </div>
   </div>
 
@@ -316,7 +316,7 @@
   <aside class="review-panel" id="review-panel" aria-live="polite">
     <div class="review-title">Review</div>
     <div class="review-subtitle" id="review-subtitle">Distribution for current question</div>
-    <div id="review-content" class="review-empty">Нема одговори за ова прашање.</div>
+    <div id="review-content" class="review-empty">No answers for this question.</div>
   </aside>
 
   <div id="qr-wrap">
@@ -383,7 +383,7 @@ function switchQuestion(index) {
   // Clear old data and redraw
   cloudData = {};
   document.getElementById('empty-state').style.display = 'flex';
-  document.getElementById('word-count').textContent = '0 зборови';
+  document.getElementById('word-count').textContent = '0 words';
   renderReview();
   updateWordCloud();
   console.log('🔄 Switched to question:', QUESTIONS[index].id);
@@ -471,7 +471,7 @@ function renderReview() {
   const total = entries.reduce((acc, [, count]) => acc + count, 0);
   if (!entries.length || total === 0) {
     content.className = 'review-empty';
-    content.textContent = 'Нема одговори за ова прашање.';
+    content.textContent = 'No answers for this question.';
     return;
   }
 
@@ -531,7 +531,7 @@ function listenWords() {
       total++;
     });
     console.log('📊 Updated words for', currentQId, ':', total, Object.keys(cloudData));
-    document.getElementById('word-count').textContent = total + (total === 1 ? ' збор' : ' зборови');
+    document.getElementById('word-count').textContent = total + (total === 1 ? ' word' : ' words');
     document.getElementById('empty-state').style.display = total === 0 ? 'flex' : 'none';
     renderReview();
     scheduleRedraw();
@@ -588,16 +588,52 @@ window.addEventListener('resize', scheduleRedraw);
 // Actions
 // ─────────────────────────────────────────
 function clearAll() {
-  if (!confirm('Да се избришат сите зборови?')) return;
+  if (!confirm('Delete all words?')) return;
   wordsRef.remove();
 }
 
 function downloadCloud() {
-  const canvas = document.getElementById('cloud-canvas');
-  const link = document.createElement('a');
-  link.download = 'word-cloud.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  // Build CSV from all words stored in Firebase (all questions)
+  if (!wordsRef) { alert('Not connected to database.'); return; }
+
+  wordsRef.once('value').then(snapshot => {
+    // Aggregate per question
+    const byQuestion = {};
+    QUESTIONS.forEach(q => { byQuestion[q.id] = {}; });
+
+    snapshot.forEach(child => {
+      const d = child.val();
+      if (!d.text || !d.questionId || !byQuestion[d.questionId]) return;
+      const key = d.text.toLowerCase().trim();
+      byQuestion[d.questionId][key] = (byQuestion[d.questionId][key] || 0) + 1;
+    });
+
+    const rows = [['Question', 'Word', 'Count', 'Percent']];
+
+    QUESTIONS.forEach(q => {
+      const entries = Object.entries(byQuestion[q.id]).sort((a, b) => b[1] - a[1]);
+      const total = entries.reduce((s, [, c]) => s + c, 0);
+      if (!entries.length) {
+        rows.push([q.text, '(no answers)', 0, '0%']);
+      } else {
+        entries.forEach(([word, count]) => {
+          const pct = total ? Math.round((count / total) * 100) : 0;
+          rows.push([`"${q.text}"`, word, count, pct + '%']);
+        });
+      }
+    });
+
+    const csv = rows.map(r => r.join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'word-cloud-results.csv';
+    link.href = url;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }).catch(e => {
+    alert('Export failed: ' + e.message);
+  });
 }
 
 // ─────────────────────────────────────────
