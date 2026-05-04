@@ -230,7 +230,8 @@
       background: #fff; padding: 10px; border-radius: .8rem;
       box-shadow: 0 8px 40px rgba(0,0,0,.5);
     }
-    #qr-wrap canvas { display: block; }
+    #qr-canvas { display: block; width: 150px; height: 150px; }
+    #qr-canvas img, #qr-canvas canvas { display: block; }
     .qr-label {
       text-align: center; font-size: .65rem; color: #555; margin-top: 4px;
       font-weight: 600; letter-spacing: .05em;
@@ -308,7 +309,7 @@
   <div class="bottombar">
     <div class="join-prompt">
       <!-- <span class="join-label">Учесниците одат на</span> -->
-      <span class="join-url" id="join-url">…</span>
+      <span class="join-url" id="join-url" style="visibility: hidden;">…</span>
     </div>
   </div>
 
@@ -319,8 +320,8 @@
   </aside>
 
   <div id="qr-wrap">
-    <canvas id="qr-canvas"></canvas>
-    <div class="qr-label">СКЕНИРАЈ ЗА ГЛАСАЊЕ</div>
+    <div id="qr-canvas"></div>
+    <!-- <div class="qr-label">СКЕНИРАЈ ЗА ГЛАСАЊЕ</div> -->
   </div>
 </div>
 
@@ -369,6 +370,7 @@ let wordsRef = null;
 let cloudData = {};
 let redrawTimer = null;
 const ROOM_ID = 'room1';
+const VOTE_URL = 'https://semoskoc.github.io/word-cloud/wordcloud-vote.html?room=room1';
 let currentQuestionIndex = 0;
 let reviewOpen = false;
 
@@ -427,16 +429,23 @@ window.addEventListener('DOMContentLoaded', initFirebase);
 // Join URL & QR
 // ─────────────────────────────────────────
 function setupJoinUrl() {
-  const voteUrl = window.location.href.replace('wordcloud-live.html', 'wordcloud-vote.html') + '?room=' + ROOM_ID;
-  document.getElementById('join-url').textContent = voteUrl;
-  return voteUrl;
+  document.getElementById('join-url').textContent = VOTE_URL;
+  return VOTE_URL;
 }
 
 function setupQR() {
-  const voteUrl = window.location.href.replace('wordcloud-live.html', 'wordcloud-vote.html') + '?room=' + ROOM_ID;
-  new QRCode(document.getElementById('qr-canvas'), {
-    text: voteUrl,
-    width: 110, height: 110,
+  const qrEl = document.getElementById('qr-canvas');
+  qrEl.innerHTML = '';
+
+  if (typeof QRCode === 'undefined') {
+    qrEl.innerHTML = '<a href="' + VOTE_URL + '" target="_blank" rel="noopener">Open vote link</a>';
+    console.error('❌ QRCode library not loaded');
+    return;
+  }
+
+  new QRCode(qrEl, {
+    text: VOTE_URL,
+    width: 150, height: 150,
     colorDark: '#0d0d1a', colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.M
   });
