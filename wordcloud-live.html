@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Word Cloud</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg1: #0d0d1a; --bg2: #12122a;
+      --accent: #a78bfa; --accent2: #f472b6; --accent3: #38bdf8;
+    }
+    html, body { width: 100%; height: 100%; background: var(--bg1); color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+
+    /* ── Main layout ── */
+    #main { display: block; width: 100%; height: 100%; position: relative; }
+
+    /* ── Top bar ── */
+    .topbar {
+      position: absolute; top: 0; left: 0; right: 0; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; z-index: 10;
+      background: linear-gradient(to bottom, rgba(13,13,26,.9), transparent);
+    }
+    .topbar-logo {
+      display: block;
+      height: 36px;
+      width: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.35));
+    }
+    .live-badge {
+      display: flex; align-items: center; gap: .45rem;
+      font-size: .78rem; font-weight: 700; letter-spacing: .1em;
+      color: #4ade80;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .counter {
+      font-size: .82rem; color: rgba(255,255,255,.45);
+    }
+    .topbar-right { display: flex; align-items: center; gap: 1.2rem; }
+    .icon-btn {
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
+      color: rgba(255,255,255,.6); border-radius: .5rem; padding: .4rem .8rem;
+      font-size: .8rem; cursor: pointer; transition: all .2s;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
+
+    /* ── Question buttons ── */
+    .question-btn {
+      padding: .55rem 1rem;
+      border-radius: .6rem;
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.05); color: rgba(255,255,255,.6);
+      font-size: .9rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .question-btn:hover { background: rgba(255,255,255,.1); }
+    .question-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .icon-btn.active {
+      background: rgba(167,139,250,.22);
+      border-color: rgba(167,139,250,.55);
+      color: #fff;
+    }
+
+    /* ── Canvas ── */
+    #cloud-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+    }
+
+    /* ── Question bar ── */
+    .question-bar {
+      position: absolute; top: 70px; left: 0; right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .85rem;
+      padding: 1rem; z-index: 10;
+    }
+    .current-question {
+      max-width: 980px;
+      text-align: center;
+      font-size: clamp(1.25rem, 2.4vw, 2rem);
+      font-weight: 800;
+      color: rgba(255,255,255,.9);
+      line-height: 1.25;
+      text-wrap: balance;
+    }
+
+    .question-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .7rem;
+      flex-wrap: wrap;
+    }
+
+    /* ── Review panel ── */
+    .review-panel {
+      position: absolute; top: 120px; right: 2rem;
+      width: min(360px, 32vw);
+      max-height: calc(100vh - 220px);
+      background: rgba(18,18,42,.88);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 1rem;
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+      overflow: auto;
+      z-index: 15;
+      transform: translateX(16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+    }
+    .review-panel.open {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .review-title {
+      font-size: .8rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.55);
+      margin-bottom: .2rem;
+      font-weight: 700;
+    }
+    .review-subtitle {
+      font-size: .78rem;
+      color: rgba(255,255,255,.4);
+      margin-bottom: .9rem;
+    }
+    .review-empty {
+      font-size: .85rem;
+      color: rgba(255,255,255,.45);
+      padding: .7rem;
+      border: 1px dashed rgba(255,255,255,.2);
+      border-radius: .7rem;
+      text-align: center;
+    }
+    .review-list {
+      display: flex;
+      flex-direction: column;
+      gap: .65rem;
+    }
+    .review-item {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: .7rem;
+      padding: .55rem .65rem;
+    }
+    .review-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+      margin-bottom: .35rem;
+    }
+    .review-word {
+      font-size: .92rem;
+      font-weight: 700;
+      color: #fff;
+      word-break: break-word;
+    }
+    .review-meta {
+      font-size: .8rem;
+      color: rgba(255,255,255,.65);
+      white-space: nowrap;
+    }
+    .review-bar {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+      overflow: hidden;
+    }
+    .review-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+    }
+
+    @media (max-width: 1024px) {
+      .review-panel {
+        width: min(420px, 92vw);
+        right: 1rem;
+      }
+
+      .question-bar {
+        top: 68px;
+        gap: .7rem;
+      }
+
+      .current-question {
+        max-width: 92vw;
+        font-size: clamp(1.05rem, 4.8vw, 1.35rem);
+      }
+
+      .question-btn {
+        font-size: .85rem;
+        padding: .5rem .85rem;
+      }
+    }
+
+    /* ── Bottom bar ── */
+    .bottombar {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 72px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; z-index: 10;
+      background: linear-gradient(to top, rgba(13,13,26,.95), transparent);
+    }
+    .join-prompt {
+      display: flex; flex-direction: column; gap: .15rem;
+    }
+    .join-label { font-size: .72rem; color: rgba(255,255,255,.35); text-transform: uppercase; letter-spacing: .1em; }
+    .join-url { font-size: .95rem; font-weight: 700; color: var(--accent3); }
+
+    /* ── QR code container ── */
+    #qr-wrap {
+      position: absolute; bottom: 80px; right: 2rem;
+      background: #fff; padding: 10px; border-radius: .8rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    }
+    #qr-wrap canvas { display: block; }
+    .qr-label {
+      text-align: center; font-size: .65rem; color: #555; margin-top: 4px;
+      font-weight: 600; letter-spacing: .05em;
+    }
+
+    /* ── Empty state ── */
+    #empty-state {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1rem;
+      pointer-events: none;
+    }
+    #empty-state .pulse-ring {
+      width: 80px; height: 80px; border-radius: 50%;
+      border: 3px solid rgba(167,139,250,.3);
+      animation: pulsering 2s ease-out infinite;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+    }
+    @keyframes pulsering {
+      0%   { transform: scale(.9);  opacity: 1;  box-shadow: 0 0 0 0 rgba(167,139,250,.4); }
+      70%  { transform: scale(1);   opacity: .8; box-shadow: 0 0 0 20px rgba(167,139,250,0); }
+      100% { transform: scale(.9);  opacity: 1;  box-shadow: 0 0 0 0 rgba(167,139,250,0); }
+    }
+    #empty-state p { color: rgba(255,255,255,.35); font-size: 1.1rem; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: rgba(74,222,128,.9); color: #052e16;
+      padding: .6rem 1.4rem; border-radius: 999px;
+      font-weight: 700; font-size: .88rem;
+      opacity: 0; transition: opacity .3s, transform .3s;
+      pointer-events: none; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Particles ── */
+    #particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .dot { position: absolute; border-radius: 50%; opacity: 0; animation: drift linear infinite; }
+    @keyframes drift {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: .5; }
+      90%  { opacity: .2; }
+      100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Main App ── -->
+<div id="main">
+  <div id="particles"></div>
+  <canvas id="cloud-canvas"></canvas>
+
+  <div id="empty-state">
+    <div class="pulse-ring">☁️</div>
+    <p>Чекај учесниците да испратат зборови…</p>
+  </div>
+
+  <div class="topbar">
+    <img class="topbar-logo" src="https://eduwebcoorporatemk.blob.core.windows.net/edu-mk/2025/07/semos-new-logo-6870e1ec2dc7b.png" alt="Semos logo"/>
+    <!-- <div class="live-badge"><div class="live-dot"></div>LIVE</div> -->
+    <div class="topbar-right">
+      <span class="counter" id="word-count">0 зборови</span>
+      <button class="icon-btn" id="review-toggle" onclick="toggleReview()">📊 Review</button>
+      <button class="icon-btn" onclick="clearAll()">🗑 Ресетирај</button>
+      <button class="icon-btn" onclick="downloadCloud()">⬇ Зачувај</button>
+    </div>
+  </div>
+
+  <div class="question-bar" id="question-bar">
+    <div class="current-question" id="current-question">Loading question...</div>
+  </div>
+
+  <div class="bottombar">
+    <div class="join-prompt">
+      <!-- <span class="join-label">Учесниците одат на</span> -->
+      <span class="join-url" id="join-url">…</span>
+    </div>
+  </div>
+
+  <aside class="review-panel" id="review-panel" aria-live="polite">
+    <div class="review-title">Review</div>
+    <div class="review-subtitle" id="review-subtitle">Distribution for current question</div>
+    <div id="review-content" class="review-empty">Нема одговори за ова прашање.</div>
+  </aside>
+
+  <div id="qr-wrap">
+    <canvas id="qr-canvas"></canvas>
+    <div class="qr-label">СКЕНИРАЈ ЗА ГЛАСАЊЕ</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- WordCloud2 -->
+<script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+<!-- QRCode -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<script>
+// ─────────────────────────────────────────
+// Firebase Config & Questions
+// ─────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDFI6qaD3mdAYv2g_CtyjfTPiM1CU7r1AI",
+  authDomain: "word-cloud-project-a73aa.firebaseapp.com",
+  databaseURL: "https://word-cloud-project-a73aa-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "word-cloud-project-a73aa",
+  storageBucket: "word-cloud-project-a73aa.firebasestorage.app",
+  messagingSenderId: "395341979953",
+  appId: "1:395341979953:web:e0c2f098cdb61a960b1010",
+  measurementId: "G-KG72RMLPK7"
+};
+
+const QUESTIONS = [
+  {
+    id: 'q1',
+    text: 'Do you use AI at a company-wide level?'
+  },
+  {
+    id: 'q2',
+    text: 'Is the use of AI regulated and controlled at the company level?'
+  },
+  {
+    id: 'q3',
+    text: 'Have employees attended training for proper and regulated use of AI?'
+  }
+];
+
+let db = null;
+let wordsRef = null;
+let cloudData = {};
+let redrawTimer = null;
+const ROOM_ID = 'room1';
+let currentQuestionIndex = 0;
+let reviewOpen = false;
+
+function switchQuestion(index) {
+  currentQuestionIndex = index;
+  document.querySelectorAll('.question-btn').forEach((el, i) => 
+    el.classList.toggle('active', i === index)
+  );
+  document.getElementById('current-question').textContent = QUESTIONS[index].text;
+  // Clear old data and redraw
+  cloudData = {};
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('word-count').textContent = '0 зборови';
+  renderReview();
+  updateWordCloud();
+  console.log('🔄 Switched to question:', QUESTIONS[index].id);
+}
+
+function updateWordCloud() {
+  if (!wordsRef) return;
+  // Restart listeners for new question
+  wordsRef.off();
+  listenWords();
+}
+
+function toggleReview() {
+  reviewOpen = !reviewOpen;
+  const panel = document.getElementById('review-panel');
+  const btn = document.getElementById('review-toggle');
+  panel.classList.toggle('open', reviewOpen);
+  btn.classList.toggle('active', reviewOpen);
+}
+
+function initFirebase() {
+  console.log('🖥️ Live display init...');
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    console.log('✓ Database connected:', FIREBASE_CONFIG.databaseURL);
+    wordsRef = db.ref(`sessions/${ROOM_ID}/words`);
+    console.log('✓ Words ref ready');
+    setupParticles();
+    setupJoinUrl();
+    setupQR();
+    setupQuestionButtons();
+    listenWords();
+    console.log('✓ Listening to words...');
+  } catch(e) {
+    console.error('❌ Firebase init error:', e);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', initFirebase);
+
+// ─────────────────────────────────────────
+// Join URL & QR
+// ─────────────────────────────────────────
+function setupJoinUrl() {
+  const voteUrl = window.location.href.replace('wordcloud-live.html', 'wordcloud-vote.html') + '?room=' + ROOM_ID;
+  document.getElementById('join-url').textContent = voteUrl;
+  return voteUrl;
+}
+
+function setupQR() {
+  const voteUrl = window.location.href.replace('wordcloud-live.html', 'wordcloud-vote.html') + '?room=' + ROOM_ID;
+  new QRCode(document.getElementById('qr-canvas'), {
+    text: voteUrl,
+    width: 110, height: 110,
+    colorDark: '#0d0d1a', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+function setupQuestionButtons() {
+  const qbar = document.getElementById('question-bar');
+  const btnsHtml = QUESTIONS.map((q, i) => 
+    `<button class="question-btn ${i === 0 ? 'active' : ''}" onclick="switchQuestion(${i})">Q${i+1}</button>`
+  ).join('');
+  qbar.insertAdjacentHTML('beforeend', `<div class="question-row">${btnsHtml}</div>`);
+  document.getElementById('current-question').textContent = QUESTIONS[0].text;
+  renderReview();
+}
+
+function renderReview() {
+  const subtitle = document.getElementById('review-subtitle');
+  const content = document.getElementById('review-content');
+  const question = QUESTIONS[currentQuestionIndex];
+  subtitle.textContent = question.text;
+
+  const entries = Object.entries(cloudData).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((acc, [, count]) => acc + count, 0);
+  if (!entries.length || total === 0) {
+    content.className = 'review-empty';
+    content.textContent = 'Нема одговори за ова прашање.';
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'review-list';
+  entries.forEach(([word, count]) => {
+    const percent = Math.round((count / total) * 100);
+    const item = document.createElement('div');
+    item.className = 'review-item';
+
+    const row = document.createElement('div');
+    row.className = 'review-row';
+
+    const wordEl = document.createElement('div');
+    wordEl.className = 'review-word';
+    wordEl.textContent = word;
+
+    const meta = document.createElement('div');
+    meta.className = 'review-meta';
+    meta.textContent = `${count} (${percent}%)`;
+
+    row.appendChild(wordEl);
+    row.appendChild(meta);
+
+    const bar = document.createElement('div');
+    bar.className = 'review-bar';
+    const fill = document.createElement('div');
+    fill.className = 'review-fill';
+    fill.style.width = `${percent}%`;
+    bar.appendChild(fill);
+
+    item.appendChild(row);
+    item.appendChild(bar);
+    list.appendChild(item);
+  });
+
+  content.className = '';
+  content.innerHTML = '';
+  content.appendChild(list);
+}
+
+// ─────────────────────────────────────────
+// Firebase listener
+// ─────────────────────────────────────────
+function listenWords() {
+  wordsRef.on('value', snapshot => {
+    cloudData = {};
+    let total = 0;
+    const currentQId = QUESTIONS[currentQuestionIndex].id;
+    snapshot.forEach(child => {
+      const data = child.val();
+      if (!data.text) return;
+      // Only include words for current question
+      if (data.questionId !== currentQId) return;
+      const key = data.text.toLowerCase().trim();
+      cloudData[key] = (cloudData[key] || 0) + 1;
+      total++;
+    });
+    console.log('📊 Updated words for', currentQId, ':', total, Object.keys(cloudData));
+    document.getElementById('word-count').textContent = total + (total === 1 ? ' збор' : ' зборови');
+    document.getElementById('empty-state').style.display = total === 0 ? 'flex' : 'none';
+    renderReview();
+    scheduleRedraw();
+  }, err => {
+    console.error('❌ Error listening:', err);
+  });
+
+  wordsRef.on('child_added', snap => {
+    const data = snap.val();
+    if (data?.text && data?.questionId === QUESTIONS[currentQuestionIndex].id) {
+      console.log('✨ New word added for current question:', data.text);
+      showToast('+ ' + data.text);
+    }
+  });
+}
+
+// ─────────────────────────────────────────
+// Word Cloud
+// ─────────────────────────────────────────
+const palette = ['#a78bfa','#c084fc','#f472b6','#fb923c','#38bdf8','#34d399','#fbbf24','#e879f9','#60a5fa','#f9a8d4'];
+
+function scheduleRedraw() {
+  clearTimeout(redrawTimer);
+  redrawTimer = setTimeout(drawCloud, 400);
+}
+
+function drawCloud() {
+  const canvas = document.getElementById('cloud-canvas');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const list = Object.entries(cloudData).map(([word, count]) => [word, count]);
+  if (!list.length) return;
+  const maxCount = Math.max(...list.map(x => x[1]));
+  WordCloud(canvas, {
+    list,
+    gridSize: Math.round(16 * canvas.width / 1440),
+    weightFactor: n => Math.max(24, (n / maxCount) * (canvas.width / 9)),
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+    fontWeight: '800',
+    color: () => palette[Math.floor(Math.random() * palette.length)],
+    rotateRatio: 0.3,
+    rotationSteps: 2,
+    backgroundColor: 'transparent',
+    shrinkToFit: true,
+    drawOutOfBound: false,
+  });
+}
+
+window.addEventListener('resize', scheduleRedraw);
+
+// ─────────────────────────────────────────
+// Actions
+// ─────────────────────────────────────────
+function clearAll() {
+  if (!confirm('Да се избришат сите зборови?')) return;
+  wordsRef.remove();
+}
+
+function downloadCloud() {
+  const canvas = document.getElementById('cloud-canvas');
+  const link = document.createElement('a');
+  link.download = 'word-cloud.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ─────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ─────────────────────────────────────────
+// Particles
+// ─────────────────────────────────────────
+function setupParticles() {
+  const c = document.getElementById('particles');
+  const colors = ['#a78bfa','#f472b6','#38bdf8','#34d399'];
+  for (let i = 0; i < 40; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    const s = Math.random() * 4 + 2;
+    Object.assign(d.style, {
+      width: s+'px', height: s+'px',
+      left: Math.random() * 100 + '%',
+      background: colors[Math.floor(Math.random() * colors.length)],
+      animationDuration: (Math.random() * 20 + 10) + 's',
+      animationDelay: (Math.random() * 15) + 's',
+    });
+    c.appendChild(d);
+  }
+}
+</script>
+
+</body>
+</html>

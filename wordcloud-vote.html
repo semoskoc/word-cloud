@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Гласај — LiveCloud</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d1a; --card: rgba(255,255,255,.05);
+      --accent: #a78bfa; --accent2: #f472b6; --accent3: #38bdf8;
+      --green: #4ade80;
+    }
+    html, body {
+      min-height: 100%; background: var(--bg); color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    body {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 0 1rem 4rem;
+      background: radial-gradient(ellipse at top, #1a0a2e 0%, #0d0d1a 60%);
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%; max-width: 480px; padding: 2rem 0 1.5rem;
+      display: flex; flex-direction: column; align-items: center; gap: .6rem;
+    }
+    .logo-tag {
+      font-size: .72rem; font-weight: 700; letter-spacing: .15em;
+      text-transform: uppercase; color: rgba(255,255,255,.3);
+    }
+    .logo {
+      display: block;
+      height: 44px;
+      width: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.35));
+    }
+    .room-pill {
+      display: flex; align-items: center; gap: .4rem;
+      padding: .3rem .9rem; border-radius: 999px;
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+      font-size: .78rem; color: rgba(255,255,255,.6);
+    }
+    .room-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+      animation: blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    /* ── Prompt card ── */
+    .prompt-card {
+      width: 100%; max-width: 480px; margin-top: 1rem;
+      background: var(--card); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 1.2rem; padding: 1.5rem 1.5rem 1.2rem;
+    }
+    .prompt-label { font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: .5rem; }
+    .prompt-text { font-size: 1.25rem; font-weight: 700; line-height: 1.4;
+      color: #fff; margin-bottom: 1rem; }
+
+    /* ── Question tabs ── */
+    .q-tabs { display: flex; gap: .6rem; justify-content: center; }
+    .q-tab { padding: .5rem 1rem; border-radius: .6rem; border: 1px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.04); color: rgba(255,255,255,.5); font-size: .85rem; 
+      font-weight: 700; cursor: pointer; transition: all .2s; }
+    .q-tab:hover { background: rgba(255,255,255,.08); }
+    .q-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── Input area ── */
+    .input-section {
+      width: 100%; max-width: 480px; margin-top: 1.5rem;
+      display: flex; flex-direction: column; gap: .8rem;
+    }
+    .input-wrap {
+      position: relative;
+      background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 1rem; overflow: hidden; transition: border-color .2s;
+    }
+    .input-wrap:focus-within { border-color: var(--accent); }
+    #word-input {
+      width: 100%; padding: 1.1rem 5rem 1.1rem 1.3rem;
+      background: transparent; border: none; outline: none;
+      font-size: 1.1rem; color: #fff; font-weight: 600;
+    }
+    #word-input::placeholder { color: rgba(255,255,255,.3); font-weight: 400; }
+    #char-count {
+      position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+      font-size: .75rem; color: rgba(255,255,255,.3);
+    }
+    .submit-btn {
+      padding: 1.1rem; border-radius: 1rem; border: none; cursor: pointer;
+      font-size: 1.05rem; font-weight: 800; letter-spacing: .02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
+      transition: opacity .2s, transform .15s; touch-action: manipulation;
+    }
+    .submit-btn:active { transform: scale(.97); }
+    .submit-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .hint { font-size: .78rem; color: rgba(255,255,255,.3); text-align: center; }
+
+    /* ── Submitted words ── */
+    .submitted-section {
+      width: 100%; max-width: 480px; margin-top: 2rem;
+    }
+    .submitted-label {
+      font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: rgba(255,255,255,.3); margin-bottom: .8rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .chip {
+      padding: .4rem .9rem; border-radius: 999px;
+      font-size: .85rem; font-weight: 600;
+      border: 1px solid; animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    /* ── Success flash ── */
+    .flash {
+      position: fixed; inset: 0; pointer-events: none;
+      background: rgba(74,222,128,.08); opacity: 0;
+      transition: opacity .15s; z-index: 999;
+    }
+    .flash.show { opacity: 1; }
+
+    /* ── Config notice ── */
+    #config-notice {
+      width: 100%; max-width: 480px; margin-top: 2rem;
+      background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.25);
+      border-radius: 1rem; padding: 1.2rem 1.3rem;
+      font-size: .85rem; line-height: 1.6; color: rgba(255,255,255,.6);
+      display: none;
+    }
+    #config-notice a { color: var(--accent3); }
+    #config-notice strong { color: #fbbf24; }
+
+    /* ── Live count badge ── */
+    .live-bar {
+      width: 100%; max-width: 480px; margin-top: 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .8rem 1.2rem; border-radius: .8rem;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+    }
+    .live-bar-left { display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: rgba(255,255,255,.45); }
+    .live-bar-left .dot2 { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 1.2s ease-in-out infinite; }
+    .live-count { font-size: .85rem; font-weight: 700; color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<div class="flash" id="flash"></div>
+
+<header>
+  <img class="logo" src="https://eduwebcoorporatemk.blob.core.windows.net/edu-mk/2025/07/semos-new-logo-6870e1ec2dc7b.png" alt="Semos logo"/>
+  <div class="room-pill">
+    <div class="room-dot"></div>
+    <span id="room-label">Session: room1</span>
+  </div>
+</header>
+
+<div class="prompt-card">
+  <div class="prompt-label">Прашање</div>
+  <div class="prompt-text" id="prompt-text">Do you use AI at a company-wide level?</div>
+</div>
+
+<div class="input-section">
+  <div class="input-wrap">
+    <input id="word-input" type="text" maxlength="30" placeholder="Напиши збор…" autocomplete="off" autocorrect="off" spellcheck="false"/>
+    <span id="char-count">0/30</span>
+  </div>
+  <button class="submit-btn" id="submit-btn" onclick="submitWord()">Испрати ☁️</button>
+  <div class="hint" id="hint-text">Еден одговор по прашање</div>
+</div>
+
+<div class="live-bar">
+  <div class="live-bar-left"><div class="dot2"></div> Вкупно зборови во облакот:</div>
+  <div class="live-count" id="total-count">—</div>
+</div>
+
+<div class="submitted-section">
+  <div class="submitted-label">Твоите зборови</div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div id="config-notice">
+  <strong>⚠️ Нема Firebase конфигурација.</strong><br/>
+  Отвори <a href="wordcloud-live.html">wordcloud-live.html</a> прво и внеси го Firebase config-от. Истиот config важи за двете страници.
+</div>
+
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+// ── Firebase Config ──
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDFI6qaD3mdAYv2g_CtyjfTPiM1CU7r1AI",
+  authDomain: "word-cloud-project-a73aa.firebaseapp.com",
+  databaseURL: "https://word-cloud-project-a73aa-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "word-cloud-project-a73aa",
+  storageBucket: "word-cloud-project-a73aa.firebasestorage.app",
+  messagingSenderId: "395341979953",
+  appId: "1:395341979953:web:e0c2f098cdb61a960b1010",
+  measurementId: "G-KG72RMLPK7"
+};
+
+// ── Questions Config (можеш ги менувај овде) ──
+const QUESTIONS = [
+  {
+    id: 'q1',
+    text: 'Do you use AI at a company-wide level?'
+  },
+  {
+    id: 'q2',
+    text: 'Is the use of AI regulated and controlled at the company level?'
+  },
+  {
+    id: 'q3',
+    text: 'Have employees attended training for proper and regulated use of AI?'
+  }
+];
+
+const chipColors = [
+  { bg: 'rgba(167,139,250,.15)', border: '#a78bfa', color: '#a78bfa' },
+  { bg: 'rgba(244,114,182,.15)', border: '#f472b6', color: '#f472b6' },
+  { bg: 'rgba(56,189,248,.15)',  border: '#38bdf8', color: '#38bdf8' },
+  { bg: 'rgba(52,211,153,.15)',  border: '#34d399', color: '#34d399' },
+  { bg: 'rgba(251,191,36,.15)',  border: '#fbbf24', color: '#fbbf24' },
+];
+
+let db = null;
+let wordsRef = null;
+let myWords = [];
+const ROOM_ID = new URLSearchParams(location.search).get('room') || 'room1';
+let currentQuestion = QUESTIONS[0];
+const ANSWER_LOCK_KEY = `livecloud_one_answer_${ROOM_ID}`;
+
+function loadAnswerMap() {
+  try {
+    return JSON.parse(localStorage.getItem(ANSWER_LOCK_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveAnswerMap(map) {
+  localStorage.setItem(ANSWER_LOCK_KEY, JSON.stringify(map));
+}
+
+let answeredByQuestion = loadAnswerMap();
+
+// ── Update prompt text ──
+function updatePrompt(question) {
+  currentQuestion = question;
+  document.getElementById('prompt-text').textContent = question.text;
+}
+
+// ── Question tabs ──
+const promptCard = document.querySelector('.prompt-card');
+const tabsHtml = QUESTIONS.map((q, i) => 
+  `<button class="q-tab ${i === 0 ? 'active' : ''}" onclick="switchQuestion(${i})">Q${i+1}</button>`
+).join('');
+promptCard.insertAdjacentHTML('beforeend', '<div class="q-tabs">' + tabsHtml + '</div>');
+
+function switchQuestion(index) {
+  document.querySelectorAll('.q-tab').forEach((el, i) => 
+    el.classList.toggle('active', i === index)
+  );
+  updatePrompt(QUESTIONS[index]);
+  currentQuestion = QUESTIONS[index];
+  console.log('🔄 Switched to question:', currentQuestion.id);
+  // Clear chips for new question
+  document.getElementById('chips').innerHTML = '';
+  myWords = [];
+  applyAnswerLockState();
+}
+
+document.getElementById('room-label').textContent = 'Session: ' + ROOM_ID;
+
+// ── Init Firebase ──
+function showFirebaseError(msg) {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = '❌ No Connection';
+  const notice = document.getElementById('config-notice');
+  notice.style.display = 'block';
+  notice.innerHTML = '<strong>⚠️ Firebase error:</strong><br/>' + msg
+    + '<br/><br/>Make sure <strong>Realtime Database</strong> is enabled:<br/>'
+    + 'Firebase Console → Build → Realtime Database → Create database → Test mode';
+}
+
+try {
+  console.log('📱 Vote page init...');
+  if (!firebase.apps.length) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    console.log('✓ Firebase app initialized');
+  }
+  db = firebase.database();
+  console.log('✓ Database connected:', FIREBASE_CONFIG.databaseURL);
+  currentQuestion = QUESTIONS[0];
+  wordsRef = db.ref(`sessions/${ROOM_ID}/words`);
+  console.log('✓ Words ref ready:', ROOM_ID);
+  listenTotal();
+} catch(e) {
+  console.error('❌ Firebase init error:', e);
+  showFirebaseError(e.message);
+}
+
+// ── Live total count ──
+function listenTotal() {
+  wordsRef.on('value', snap => {
+    console.log('📊 Total words:', snap.numChildren());
+    document.getElementById('total-count').textContent = snap.numChildren();
+  }, err => {
+    console.error('❌ Error listening to words:', err);
+    showFirebaseError('Cannot connect to database: ' + err.code);
+  });
+}
+
+// ── Submit ──
+const input = document.getElementById('word-input');
+const submitBtn = document.getElementById('submit-btn');
+const charCount = document.getElementById('char-count');
+const hintText = document.getElementById('hint-text');
+
+function getSavedAnswerForCurrentQuestion() {
+  return answeredByQuestion[currentQuestion.id] || null;
+}
+
+function renderSavedAnswerChip(answer) {
+  document.getElementById('chips').innerHTML = '';
+  addChip(answer);
+}
+
+function applyAnswerLockState() {
+  const savedAnswer = getSavedAnswerForCurrentQuestion();
+  if (savedAnswer) {
+    input.disabled = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Веќе одговорено';
+    input.placeholder = 'Веќе даде одговор за ова прашање';
+    charCount.textContent = `${savedAnswer.length}/30`;
+    hintText.textContent = `Твој одговор: "${savedAnswer}"`;
+    renderSavedAnswerChip(savedAnswer);
+    return;
+  }
+
+  input.disabled = false;
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Испрати ☁️';
+  input.placeholder = 'Напиши збор…';
+  charCount.textContent = `${input.value.length}/30`;
+  hintText.textContent = 'Еден одговор по прашање';
+}
+
+input.addEventListener('input', () => {
+  charCount.textContent = input.value.length + '/30';
+});
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitWord();
+});
+
+// Apply lock state only after DOM refs are initialized.
+applyAnswerLockState();
+
+async function submitWord() {
+  if (!wordsRef) {
+    console.error('❌ wordsRef not initialized');
+    showFirebaseError('Database not connected. Check browser console (F12) for details.');
+    return;
+  }
+  if (getSavedAnswerForCurrentQuestion()) {
+    applyAnswerLockState();
+    return;
+  }
+  const word = input.value.trim();
+  if (!word) {
+    console.log('ℹ️ Empty field - not submitting');
+    return;
+  }
+
+  console.log('📤 Submitting word:', word, 'for question:', currentQuestion.id);
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sending…';
+  try {
+    await wordsRef.push({ 
+      text: word, 
+      questionId: currentQuestion.id,
+      ts: Date.now() 
+    });
+    console.log('✓ Word successfully sent:', word);
+    answeredByQuestion[currentQuestion.id] = word;
+    saveAnswerMap(answeredByQuestion);
+    renderSavedAnswerChip(word);
+    myWords.push(word);
+    input.value = '';
+    charCount.textContent = `${word.length}/30`;
+    flashScreen();
+    applyAnswerLockState();
+  } catch(e) {
+    console.error('❌ Error submitting:', e.code, e.message);
+    alert('Error: ' + e.code + ' - ' + e.message
+      + '\n\nMake sure Realtime Database is in test mode and rules are correct.');
+    submitBtn.textContent = 'Submit ☁️';
+  } finally {
+    submitBtn.disabled = false;
+    input.focus();
+  }
+}
+
+// ── Chips ──
+function addChip(word) {
+  const c = chipColors[myWords.length % chipColors.length];
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.textContent = word;
+  Object.assign(chip.style, {
+    background: c.bg, borderColor: c.border, color: c.color,
+  });
+  document.getElementById('chips').prepend(chip);
+}
+
+// ── Flash ──
+function flashScreen() {
+  const f = document.getElementById('flash');
+  f.classList.add('show');
+  setTimeout(() => f.classList.remove('show'), 200);
+}
+</script>
+</body>
+</html>
